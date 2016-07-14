@@ -253,6 +253,7 @@
     <ClCompile Include="..\src\libdecaf\src\modules\coreinit\coreinit_interrupts.cpp" />
     <ClCompile Include="..\src\libdecaf\src\modules\coreinit\coreinit_lockedcache.cpp" />
     <ClCompile Include="..\src\libdecaf\src\modules\coreinit\coreinit_mcp.cpp" />
+    <ClCompile Include="..\src\libdecaf\src\modules\coreinit\coreinit_memblockheap.cpp" />
     <ClCompile Include="..\src\libdecaf\src\modules\coreinit\coreinit_memheap.cpp" />
     <ClCompile Include="..\src\libdecaf\src\modules\coreinit\coreinit_memlist.cpp" />
     <ClCompile Include="..\src\libdecaf\src\modules\coreinit\coreinit_memory.cpp" />

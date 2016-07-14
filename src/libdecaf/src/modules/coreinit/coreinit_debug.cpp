@@ -213,19 +213,21 @@ coreinit__os_snprintf(char *buffer, uint32_t size, const char *fmt, ppctypes::Va
 static uint32_t
 OSGetSymbolName(uint32_t address, char *buffer, int bufsize)
 {
-   uint32_t retval = 0;
-   bool found = false;
-
+   auto retval = 0u;
+   auto found = false;
    kernel::loader::lockLoader();
    const auto &modules = kernel::loader::getLoadedModules();
+
    for (auto &mod : modules) {
-      uint32_t codeBase = 0;
+      auto codeBase = 0u;
+
       for (auto &sec : mod.second->sections) {
          if (sec.name.compare(".text") == 0) {
             codeBase = sec.start;
             break;
          }
       }
+
       for (auto &sym : mod.second->symbols) {
          if (sym.second == address) {
             strncpy(buffer, sym.first.c_str(), bufsize);
@@ -234,12 +236,13 @@ OSGetSymbolName(uint32_t address, char *buffer, int bufsize)
             break;
          }
       }
+
       if (found) {
          break;
       }
    }
-   kernel::loader::unlockLoader();
 
+   kernel::loader::unlockLoader();
    return retval;
 }
 

@@ -22,7 +22,7 @@ MEMCreateUnitHeapEx(UnitHeap *heap,
                     uint32_t size,
                     uint32_t blockSize,
                     int32_t alignment,
-                    uint16_t flags);
+                    uint32_t flags);
 
 void *
 MEMDestroyUnitHeap(UnitHeap *heap);

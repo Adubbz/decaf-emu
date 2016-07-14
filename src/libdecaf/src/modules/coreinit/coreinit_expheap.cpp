@@ -19,7 +19,7 @@ struct ExpandedHeapBlock
    virtual_ptr<ExpandedHeapBlock> prev;
 };
 
-struct ExpandedHeap : CommonHeap
+struct ExpandedHeap : MEMHeapHeader
 {
    uint32_t size;
    uint32_t bottom;
@@ -146,7 +146,7 @@ MEMCreateExpHeap(ExpandedHeap *heap, uint32_t size)
  * Adds it to the list of active heaps.
  */
 ExpandedHeap *
-MEMCreateExpHeapEx(ExpandedHeap *heap, uint32_t size, uint16_t flags)
+MEMCreateExpHeapEx(ExpandedHeap *heap, uint32_t size, uint32_t flags)
 {
    // Setup state
    auto base = mem::untranslate(heap);
@@ -162,8 +162,8 @@ MEMCreateExpHeapEx(ExpandedHeap *heap, uint32_t size, uint16_t flags)
    heap->freeBlockList->next = nullptr;
    heap->freeBlockList->prev = nullptr;
 
-   // Setup common header
-   MEMiInitHeapHead(heap, MEMiHeapTag::ExpandedHeap, heap->freeBlockList->addr, heap->freeBlockList->addr + heap->freeBlockList->size);
+   // Register heap
+   internal::registerHeap(heap, MEMHeapTag::ExpandedHeap, heap->freeBlockList->addr, heap->freeBlockList->addr + heap->freeBlockList->size, flags);
    return heap;
 }
 
@@ -176,7 +176,7 @@ MEMCreateExpHeapEx(ExpandedHeap *heap, uint32_t size, uint16_t flags)
 ExpandedHeap *
 MEMDestroyExpHeap(ExpandedHeap *heap)
 {
-   MEMiFinaliseHeap(heap);
+   internal::unregisterHeap(heap);
    return heap;
 }
 
