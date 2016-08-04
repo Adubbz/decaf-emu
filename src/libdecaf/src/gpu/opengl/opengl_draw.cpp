@@ -42,6 +42,11 @@ bool GLDriver::checkReadyDraw()
       return false;
    }
 
+   if (!checkActiveFeedbackBuffers()) {
+      gLog->warn("Skipping draw with invalid feedback buffers.");
+      return false;
+   }
+
    if (!checkActiveTextures()) {
       gLog->warn("Skipping draw with invalid textures.");
       return false;
@@ -328,6 +333,37 @@ GLDriver::decafClearDepthStencil(const pm4::DecafClearDepthStencil &data)
    gl::glDisable(gl::GL_SCISSOR_TEST);
    gl::glClearNamedFramebufferfi(mDepthClearFrameBuffer, gl::GL_DEPTH_STENCIL, 0, db_depth_clear.DEPTH_CLEAR, db_stencil_clear.CLEAR());
    gl::glEnable(gl::GL_SCISSOR_TEST);
+}
+
+void
+GLDriver::decafBeginStreamOut(const pm4::DecafBeginStreamOut &data)
+{
+   decaf_check(!mFeedbackActive);
+
+   if (!mFeedbackQuery) {
+      gl::glCreateQueries(gl::GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, 1, &mFeedbackQuery);
+      decaf_check(mFeedbackQuery);
+   }
+
+   mFeedbackActive = true;
+   gl::glBeginQuery(gl::GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, mFeedbackQuery);
+   gl::glBeginTransformFeedback(getPrimitiveMode(static_cast<latte::VGT_DI_PRIMITIVE_TYPE>(data.mode)));
+}
+
+void
+GLDriver::decafEndStreamOut(const pm4::DecafEndStreamOut &data)
+{
+   decaf_check(mFeedbackActive);
+
+   gl::glEndTransformFeedback();
+   gl::glEndQuery(gl::GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+   mFeedbackActive = false;
+
+   gl::GLint numVertices = 0;
+   glGetQueryObjectiv(mFeedbackQuery, gl::GL_QUERY_RESULT, &numVertices);
+   if (numVertices > 0) {
+      copyActiveFeedbackBuffers(numVertices);
+   }
 }
 
 } // namespace opengl

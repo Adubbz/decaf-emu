@@ -20,6 +20,8 @@ enum IT_OPCODE : uint32_t
    DECAF_INVALIDATE           = 0x07,
    DECAF_DEBUGMARKER          = 0x08,
    DECAF_OSSCREEN_FLIP        = 0x09,
+   DECAF_BEGIN_STREAMOUT      = 0x0A,
+   DECAF_END_STREAMOUT        = 0x0B,
 
    NOP                        = 0x10,
    INDIRECT_BUFFER_END        = 0x17,

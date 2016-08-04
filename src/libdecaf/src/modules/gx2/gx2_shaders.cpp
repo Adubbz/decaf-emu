@@ -568,6 +568,20 @@ GX2SetShaderModeEx(GX2ShaderMode mode,
 }
 
 void
+GX2SetStreamOutBuffer(uint32_t index,
+                      GX2OutputStream *stream)
+{
+   decaf_check(index >= 0 && index <= 3);
+   decaf_check(stream->buffer % 256 == 0);
+   decaf_check(stream->stride % 4 == 0);
+   decaf_check(stream->size % 4 == 0);
+
+   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_BUFFER_SIZE_0 + 16 * index), stream->size >> 2 });
+   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_VTX_STRIDE_0 + 16 * index), stream->stride >> 2 });
+   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_BUFFER_BASE_0 + 16 * index), stream->buffer >> 8 });
+}
+
+void
 GX2SetStreamOutEnable(BOOL enable)
 {
    auto vgt_strmout_en = latte::VGT_STRMOUT_EN::get(0);
@@ -576,6 +590,21 @@ GX2SetStreamOutEnable(BOOL enable)
       .STREAMOUT().set(!!enable);
 
    pm4::write(pm4::SetContextReg { latte::Register::VGT_STRMOUT_EN, vgt_strmout_en.value });
+}
+
+void
+GX2SetStreamOutContext(uint32_t index,
+                       GX2OutputStream *stream,
+                       GX2PrimitiveMode mode)
+{
+   pm4::write(pm4::DecafBeginStreamOut { mode });
+}
+
+void
+GX2SaveStreamOutContext(uint32_t index,
+                        GX2OutputStream *stream)
+{
+   pm4::write(pm4::DecafEndStreamOut { });
 }
 
 void
