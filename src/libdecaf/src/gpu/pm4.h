@@ -181,32 +181,6 @@ struct DecafOSScreenFlip
    }
 };
 
-struct DecafBeginStreamOut
-{
-   static const auto Opcode = type3::DECAF_BEGIN_STREAMOUT;
-
-   uint32_t mode;
-
-   template<typename Serialiser>
-   void serialise(Serialiser &se)
-   {
-      se(mode);
-   }
-};
-
-struct DecafEndStreamOut
-{
-   static const auto Opcode = type3::DECAF_END_STREAMOUT;
-
-   uint32_t dummy;
-
-   template<typename Serialiser>
-   void serialise(Serialiser &se)
-   {
-      se(dummy);
-   }
-};
-
 struct DrawIndexAuto
 {
    static const auto Opcode = type3::DRAW_INDEX_AUTO;
@@ -741,6 +715,58 @@ struct EventWriteEOP
       se(addrHi.value);
       se(dataLo);
       se(dataHi);
+   }
+};
+
+struct StreamOutBaseUpdate
+{
+   static const auto Opcode = type3::STRMOUT_BASE_UPDATE;
+
+   uint32_t index;
+   uint32_t addr;
+
+   template<typename Serialiser>
+   void serialise(Serialiser &se)
+   {
+      se(index);
+      se(addr);
+   }
+};
+
+enum STRMOUT_CONTROL_SOURCE_SELECT
+{
+   STRMOUT_SOURCE_BUFFER_OFFSET  = 0,
+   STRMOUT_SOURCE_FILLED_SIZE    = 1,
+   STRMOUT_SOURCE_SRC_ADDRESS    = 2,
+   STRMOUT_SOURCE_NONE           = 3,
+};
+
+BITFIELD(STRMOUT_CONTROL, uint32_t)
+   BITFIELD_ENTRY(0, 1, bool, STORE_FILLEDSIZE)
+   BITFIELD_ENTRY(1, 2, STRMOUT_CONTROL_SOURCE_SELECT, SOURCE_SELECT)
+   BITFIELD_ENTRY(8, 2, uint8_t, BUFFER_SELECT)
+BITFIELD_END
+
+struct StreamOutBufferUpdate
+{
+   static const auto Opcode = type3::STRMOUT_BUFFER_UPDATE;
+
+   STRMOUT_CONTROL control;
+   uint32_t dstAddrLo;
+   uint32_t dstAddrHi;
+   uint32_t bufferOffset;
+   uint32_t srcAddrLo;
+   uint32_t srcAddrHi;
+
+   template<typename Serialiser>
+   void serialise(Serialiser &se)
+   {
+      se(control.value);
+      se(dstAddrLo);
+      se(dstAddrHi);
+      se(bufferOffset);
+      se(srcAddrLo);
+      se(srcAddrHi);
    }
 };
 

@@ -344,16 +344,23 @@ CHECK_OFFSET(GX2AttribStream, 0x18, mask);
 CHECK_OFFSET(GX2AttribStream, 0x1c, endianSwap);
 CHECK_SIZE(GX2AttribStream, 0x20);
 
+struct GX2StreamContext
+{
+   // UNKNOWN size + data!
+};
+
 struct GX2OutputStream
 {
    be_val<uint32_t> size;
-   be_val<uint32_t> buffer;
+   be_ptr<uint8_t> buffer;
    be_val<uint32_t> stride;
-   UNKNOWN(0x14);
+   GX2RBuffer gx2rData;
+   be_ptr<GX2StreamContext> context;
 };
 CHECK_OFFSET(GX2OutputStream, 0x00, size);
 CHECK_OFFSET(GX2OutputStream, 0x04, buffer);
 CHECK_OFFSET(GX2OutputStream, 0x08, stride);
+CHECK_OFFSET(GX2OutputStream, 0x0C, gx2rData);
 CHECK_SIZE(GX2OutputStream, 0x20);
 
 #pragma pack(pop)
@@ -429,7 +436,7 @@ GX2SetStreamOutEnable(BOOL enable);
 void
 GX2SetStreamOutContext(uint32_t index,
                        GX2OutputStream *stream,
-                       GX2PrimitiveMode mode);
+                       GX2StreamOutContextMode mode);
 
 void
 GX2SaveStreamOutContext(uint32_t index,

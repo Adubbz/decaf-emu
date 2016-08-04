@@ -572,13 +572,21 @@ GX2SetStreamOutBuffer(uint32_t index,
                       GX2OutputStream *stream)
 {
    decaf_check(index >= 0 && index <= 3);
-   decaf_check(stream->buffer % 256 == 0);
+   decaf_check(stream->buffer.getAddress() % 256 == 0);
    decaf_check(stream->stride % 4 == 0);
    decaf_check(stream->size % 4 == 0);
 
-   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_BUFFER_SIZE_0 + 16 * index), stream->size >> 2 });
-   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_VTX_STRIDE_0 + 16 * index), stream->stride >> 2 });
-   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_BUFFER_BASE_0 + 16 * index), stream->buffer >> 8 });
+   auto addr = stream->buffer.getAddress();
+   auto size = stream->size;
+
+   if (!addr) {
+      addr = stream->gx2rData.buffer.getAddress();
+      size = stream->gx2rData.elemCount * stream->gx2rData.elemSize;
+   }
+
+   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_BUFFER_SIZE_0 + 16 * index), size >> 2 });
+   pm4::write(pm4::SetContextReg { static_cast<latte::Register>(latte::Register::VGT_STRMOUT_BUFFER_BASE_0 + 16 * index), addr >> 8 });
+   pm4::write(pm4::StreamOutBaseUpdate { index, addr >> 8 });
 }
 
 void
@@ -595,16 +603,56 @@ GX2SetStreamOutEnable(BOOL enable)
 void
 GX2SetStreamOutContext(uint32_t index,
                        GX2OutputStream *stream,
-                       GX2PrimitiveMode mode)
+                       GX2StreamOutContextMode mode)
 {
-   pm4::write(pm4::DecafBeginStreamOut { mode });
+   auto srcAddrLo = 0u;
+   auto bufferOffset = 0u;
+   auto control = pm4::STRMOUT_CONTROL::get(0)
+      .BUFFER_SELECT().set(index)
+      .STORE_FILLEDSIZE().set(false);
+
+   switch (mode) {
+   case GX2StreamOutContextMode::Append:
+      control = control
+         .SOURCE_SELECT().set(pm4::STRMOUT_SOURCE_SRC_ADDRESS);
+
+      srcAddrLo = stream->context.getAddress();
+      break;
+   case GX2StreamOutContextMode::FromOffset:
+      control = control
+         .SOURCE_SELECT().set(pm4::STRMOUT_SOURCE_BUFFER_OFFSET);
+
+      bufferOffset = mem::untranslate(stream);
+      break;
+   case GX2StreamOutContextMode::FromStart:
+      control = control
+         .SOURCE_SELECT().set(pm4::STRMOUT_SOURCE_BUFFER_OFFSET);
+
+      bufferOffset = 0u;
+      break;
+   default:
+      decaf_abort("Unexpected GX2StreamOutContextMode {}", mode);
+   }
+
+   pm4::write(pm4::StreamOutBufferUpdate {
+      control, 0, 0, bufferOffset, srcAddrLo, 0
+   });
 }
 
 void
 GX2SaveStreamOutContext(uint32_t index,
                         GX2OutputStream *stream)
 {
-   pm4::write(pm4::DecafEndStreamOut { });
+   auto control = pm4::STRMOUT_CONTROL::get(0)
+      .BUFFER_SELECT().set(index)
+      .STORE_FILLEDSIZE().set(true)
+      .SOURCE_SELECT().set(pm4::STRMOUT_SOURCE_NONE);
+
+   auto dstAddrLo = stream->context.getAddress();
+
+   pm4::write(pm4::StreamOutBufferUpdate {
+      control, dstAddrLo, 0, 0, 0, 0
+   });
 }
 
 void
