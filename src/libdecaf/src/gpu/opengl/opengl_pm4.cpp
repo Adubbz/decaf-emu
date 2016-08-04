@@ -121,6 +121,12 @@ GLDriver::handlePacketType3(pm4::type3::Header header, const gsl::span<uint32_t>
    case pm4::type3::DECAF_OSSCREEN_FLIP:
       decafOSScreenFlip(pm4::read<pm4::DecafOSScreenFlip>(reader));
       break;
+   case pm4::type3::DECAF_BEGIN_STREAMOUT:
+      decafBeginStreamOut(pm4::read<pm4::DecafBeginStreamOut>(reader));
+      break;
+   case pm4::type3::DECAF_END_STREAMOUT:
+      decafEndStreamOut(pm4::read<pm4::DecafEndStreamOut>(reader));
+      break;
    case pm4::type3::DRAW_INDEX_AUTO:
       drawIndexAuto(pm4::read<pm4::DrawIndexAuto>(reader));
       break;

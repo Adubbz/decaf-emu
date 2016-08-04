@@ -181,6 +181,32 @@ struct DecafOSScreenFlip
    }
 };
 
+struct DecafBeginStreamOut
+{
+   static const auto Opcode = type3::DECAF_BEGIN_STREAMOUT;
+
+   uint32_t mode;
+
+   template<typename Serialiser>
+   void serialise(Serialiser &se)
+   {
+      se(mode);
+   }
+};
+
+struct DecafEndStreamOut
+{
+   static const auto Opcode = type3::DECAF_END_STREAMOUT;
+
+   uint32_t dummy;
+
+   template<typename Serialiser>
+   void serialise(Serialiser &se)
+   {
+      se(dummy);
+   }
+};
+
 struct DrawIndexAuto
 {
    static const auto Opcode = type3::DRAW_INDEX_AUTO;

@@ -137,6 +137,7 @@ bool GLDriver::checkActiveShader()
    auto cb_shader_mask = getRegister<latte::CB_SHADER_MASK>(latte::Register::CB_SHADER_MASK);
    auto sx_alpha_test_control = getRegister<latte::SX_ALPHA_TEST_CONTROL>(latte::Register::SX_ALPHA_TEST_CONTROL);
    auto sx_alpha_ref = getRegister<latte::SX_ALPHA_REF>(latte::Register::SX_ALPHA_REF);
+   auto vgt_strmout_en = getRegister<latte::VGT_STRMOUT_EN>(latte::Register::VGT_STRMOUT_EN);
 
    if (!pgm_start_fs.PGM_START) {
       gLog->error("Fetch shader was not set");
@@ -148,8 +149,8 @@ bool GLDriver::checkActiveShader()
       return false;
    }
 
-   if (!pgm_start_ps.PGM_START) {
-      gLog->error("Pixel shader was not set");
+   if (!vgt_strmout_en.STREAMOUT().get() && !pgm_start_ps.PGM_START) {
+      gLog->error("Pixel shader was not set (and transform feedback was not enabled)");
       return false;
    }
 
@@ -167,6 +168,7 @@ bool GLDriver::checkActiveShader()
 
    auto fsShaderKey = static_cast<uint64_t>(fsPgmAddress) << 32;
    auto vsShaderKey = static_cast<uint64_t>(vsPgmAddress) << 32;
+   vsShaderKey ^= vgt_strmout_en.STREAMOUT().get();
    auto psShaderKey = static_cast<uint64_t>(psPgmAddress) << 32;
    psShaderKey ^= static_cast<uint64_t>(alphaTestFunc) << 28;
    psShaderKey ^= cb_shader_mask.value & 0xFF;
@@ -261,6 +263,9 @@ bool GLDriver::checkActiveShader()
          }
       }
 
+      shader.fetch = &fetchShader;
+      shader.fetchKey = fsShaderKey;
+
       // Compile vertex shader if needed
       auto &vertexShader = mVertexShaders[vsShaderKey];
 
@@ -304,60 +309,70 @@ bool GLDriver::checkActiveShader()
          }
       }
 
-      // Compile pixel shader if needed
-      auto &pixelShader = mPixelShaders[psShaderKey];
-
-      if (!pixelShader.object) {
-         pixelShader.cpuMemStart = psPgmAddress;
-         pixelShader.cpuMemEnd = psPgmAddress + psPgmSize;
-
-         dumpShader("pixel", psPgmAddress, psPgmSize);
-
-         if (!compilePixelShader(pixelShader, vertexShader, make_virtual_ptr<uint8_t>(psPgmAddress), psPgmSize)) {
-            gLog->error("Failed to recompile pixel shader");
-            return false;
-         }
-
-         // Create OpenGL Shader
-         const gl::GLchar *code[] = { pixelShader.code.c_str() };
-         pixelShader.object = gl::glCreateShaderProgramv(gl::GL_FRAGMENT_SHADER, 1, code);
-
-         // Check if shader compiled & linked properly
-         gl::GLint isLinked = 0;
-         gl::glGetProgramiv(pixelShader.object, gl::GL_LINK_STATUS, &isLinked);
-
-         if (!isLinked) {
-            auto log = getProgramLog(pixelShader.object, gl::glGetProgramiv, gl::glGetProgramInfoLog);
-            gLog->error("OpenGL failed to compile pixel shader:\n{}", log);
-            gLog->error("Shader Disassembly:\n{}\n", pixelShader.disassembly);
-            gLog->error("Shader Code:\n{}\n", pixelShader.code);
-            return false;
-         }
-
-         // Get uniform locations
-         pixelShader.uniformRegisters = gl::glGetUniformLocation(pixelShader.object, "PR");
-         pixelShader.uniformAlphaRef = gl::glGetUniformLocation(pixelShader.object, "uAlphaRef");
-         pixelShader.sx_alpha_test_control = sx_alpha_test_control;
-      }
-
-      shader.fetch = &fetchShader;
       shader.vertex = &vertexShader;
-      shader.pixel = &pixelShader;
-      shader.fetchKey = fsShaderKey;
       shader.vertexKey = vsShaderKey;
-      shader.pixelKey = psShaderKey;
+
+      if (vgt_strmout_en.STREAMOUT().get()) {
+
+         // Transform feedback enabled; no pixel shader used
+         shader.pixel = nullptr;
+         shader.pixelKey = 0;
+
+      } else {
+
+         // Transform feedback disabled; compile pixel shader if needed
+         auto &pixelShader = mPixelShaders[psShaderKey];
+
+         if (!pixelShader.object) {
+            pixelShader.cpuMemStart = psPgmAddress;
+            pixelShader.cpuMemEnd = psPgmAddress + psPgmSize;
+
+            dumpShader("pixel", psPgmAddress, psPgmSize);
+
+            if (!compilePixelShader(pixelShader, vertexShader, make_virtual_ptr<uint8_t>(psPgmAddress), psPgmSize)) {
+               gLog->error("Failed to recompile pixel shader");
+               return false;
+            }
+
+            // Create OpenGL Shader
+            const gl::GLchar *code[] = { pixelShader.code.c_str() };
+            pixelShader.object = gl::glCreateShaderProgramv(gl::GL_FRAGMENT_SHADER, 1, code);
+
+            // Check if shader compiled & linked properly
+            gl::GLint isLinked = 0;
+            gl::glGetProgramiv(pixelShader.object, gl::GL_LINK_STATUS, &isLinked);
+
+            if (!isLinked) {
+               auto log = getProgramLog(pixelShader.object, gl::glGetProgramiv, gl::glGetProgramInfoLog);
+               gLog->error("OpenGL failed to compile pixel shader:\n{}", log);
+               gLog->error("Shader Disassembly:\n{}\n", pixelShader.disassembly);
+               gLog->error("Shader Code:\n{}\n", pixelShader.code);
+               return false;
+            }
+
+            // Get uniform locations
+            pixelShader.uniformRegisters = gl::glGetUniformLocation(pixelShader.object, "PR");
+            pixelShader.uniformAlphaRef = gl::glGetUniformLocation(pixelShader.object, "uAlphaRef");
+            pixelShader.sx_alpha_test_control = sx_alpha_test_control;
+         }
+
+         shader.pixel = &pixelShader;
+         shader.pixelKey = psShaderKey;
+      }
 
       // Create pipeline
       gl::glGenProgramPipelines(1, &shader.object);
       gl::glUseProgramStages(shader.object, gl::GL_VERTEX_SHADER_BIT, shader.vertex->object);
-      gl::glUseProgramStages(shader.object, gl::GL_FRAGMENT_SHADER_BIT, shader.pixel->object);
+      if (shader.pixel) {
+         gl::glUseProgramStages(shader.object, gl::GL_FRAGMENT_SHADER_BIT, shader.pixel->object);
+      }
    }
 
    // Set active shader
    mActiveShader = &shader;
 
    // Set alpha reference
-   if (alphaTestFunc != latte::REF_ALWAYS && alphaTestFunc != latte::REF_NEVER) {
+   if (mActiveShader->pixel && alphaTestFunc != latte::REF_ALWAYS && alphaTestFunc != latte::REF_NEVER) {
       gl::glProgramUniform1f(mActiveShader->pixel->object, mActiveShader->pixel->uniformAlphaRef, sx_alpha_ref.ALPHA_REF);
    }
 
@@ -659,6 +674,103 @@ bool GLDriver::checkActiveAttribBuffers()
    return true;
 }
 
+bool GLDriver::checkActiveFeedbackBuffers()
+{
+   if (!mActiveShader
+    || !mActiveShader->vertex || !mActiveShader->vertex->object) {
+      return false;
+   }
+
+   if (mActiveShader->pixel) {
+      return true;
+   }
+
+   for (auto i = 0u; i < mActiveShader->vertex->usedFeedbackBuffers.size(); ++i) {
+      if (!mActiveShader->vertex->usedFeedbackBuffers[i]) {
+         continue;
+      }
+
+      auto vgt_strmout_buffer_base = getRegister<uint32_t>(latte::Register::VGT_STRMOUT_BUFFER_BASE_0 + 16 * i);
+      auto vgt_strmout_buffer_size = getRegister<uint32_t>(latte::Register::VGT_STRMOUT_BUFFER_SIZE_0 + 16 * i);
+      auto vgt_strmout_vtx_stride = getRegister<uint32_t>(latte::Register::VGT_STRMOUT_VTX_STRIDE_0 + 16 * i);
+
+      auto addr = vgt_strmout_buffer_base << 8;
+      auto size = vgt_strmout_buffer_size << 2;
+      auto stride = vgt_strmout_vtx_stride << 2;
+
+      if (addr == 0 || size == 0) {
+         gLog->error("Error, transform feedback buffer {} is used by shader but not defined", i);
+         return false;
+      }
+
+      if (size % stride) {
+         gLog->error("Error, size: {} is not multiple of stride: {}", size, stride);
+         return false;
+      }
+
+      auto &buffer = mFeedbackBuffers[addr];
+
+      if (!buffer.object || buffer.size < size) {
+         if (buffer.object) {
+            gl::glDeleteBuffers(1, &buffer.object);
+         }
+
+         gl::glCreateBuffers(1, &buffer.object);
+         gl::glNamedBufferStorage(buffer.object, size + BUFFER_PADDING, NULL, gl::GL_MAP_WRITE_BIT | gl::GL_MAP_PERSISTENT_BIT);
+      }
+
+      gl::glBindBufferBase(gl::GL_TRANSFORM_FEEDBACK_BUFFER, i, buffer.object);
+
+      buffer.addr = addr;
+      buffer.size = size;
+      buffer.stride = stride;
+   }
+
+   return true;
+}
+
+void GLDriver::copyActiveFeedbackBuffers(int numVertices)
+{
+   decaf_check(mActiveShader);
+   decaf_check(mActiveShader->vertex);
+   decaf_check(mActiveShader->vertex->object);
+
+   if (mActiveShader->pixel) {
+      return;  // Not a transform feedback shader; nothing to do.
+   }
+
+   if (numVertices == 0) {
+      return;  // Nothing to copy.
+   }
+
+   for (auto i = 0u; i < mActiveShader->vertex->usedFeedbackBuffers.size(); ++i) {
+      if (!mActiveShader->vertex->usedFeedbackBuffers[i]) {
+         continue;
+      }
+
+      auto vgt_strmout_buffer_base = getRegister<uint32_t>(latte::Register::VGT_STRMOUT_BUFFER_BASE_0 + 16 * i);
+      auto addr = vgt_strmout_buffer_base << 8;
+      auto &buffer = mFeedbackBuffers[addr];
+      decaf_check(buffer.object);
+
+      auto copySize = numVertices * buffer.stride;
+      decaf_check(copySize <= buffer.size);
+
+      void *mappedBuffer = gl::glMapNamedBufferRange(buffer.object, 0, copySize, gl::GL_MAP_READ_BIT);
+      decaf_check(mappedBuffer);
+
+      stridedMemcpy(mappedBuffer,
+                    mem::translate<void>(buffer.addr),
+                    copySize,
+                    0,  // offset
+                    buffer.stride,
+                    latte::SQ_ENDIAN_NONE,
+                    latte::FMT_32);
+
+      gl::glUnmapNamedBuffer(buffer.object);
+   }
+}
+
 bool GLDriver::parseFetchShader(FetchShader &shader, void *buffer, size_t size)
 {
    auto program = reinterpret_cast<latte::ControlFlowInst *>(buffer);
@@ -890,6 +1002,7 @@ bool GLDriver::compileVertexShader(VertexShader &vertex, FetchShader &fetch, uin
    }
 
    vertex.usedUniformBlocks = shader.usedUniformBlocks;
+   vertex.usedFeedbackBuffers = shader.usedFeedbackBuffers;
 
    fmt::MemoryWriter out;
    out << shader.fileHeader;

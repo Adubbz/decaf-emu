@@ -76,6 +76,7 @@ struct VertexShader : public Resource
    std::array<gl::GLuint, latte::MaxAttributes> attribLocations;
    std::array<uint8_t, 256> outputMap;
    std::array<bool, 16> usedUniformBlocks;
+   std::array<bool, 4> usedFeedbackBuffers;
    std::string code;
    std::string disassembly;
 };
@@ -99,7 +100,7 @@ struct Shader
    gl::GLuint object = 0;
    FetchShader *fetch;
    VertexShader *vertex;
-   PixelShader *pixel;
+   PixelShader *pixel;  // Null indicates a transform-feedback shader
    uint64_t fetchKey;
    uint64_t vertexKey;
    uint64_t pixelKey;
@@ -179,6 +180,8 @@ private:
    void decafInvalidate(const pm4::DecafInvalidate &data);
    void decafDebugMarker(const pm4::DecafDebugMarker &data);
    void decafOSScreenFlip(const pm4::DecafOSScreenFlip &data);
+   void decafBeginStreamOut(const pm4::DecafBeginStreamOut &data);
+   void decafEndStreamOut(const pm4::DecafEndStreamOut &data);
    void drawIndexAuto(const pm4::DrawIndexAuto &data);
    void drawIndex2(const pm4::DrawIndex2 &data);
    void indexType(const pm4::IndexType &data);
@@ -227,11 +230,14 @@ private:
    bool checkActiveAttribBuffers();
    bool checkActiveColorBuffer();
    bool checkActiveDepthBuffer();
+   bool checkActiveFeedbackBuffers();
    bool checkActiveSamplers();
    bool checkActiveShader();
    bool checkActiveTextures();
    bool checkActiveUniforms();
    bool checkViewport();
+
+   void copyActiveFeedbackBuffers(int numVertices);
 
    void setRegister(latte::Register reg, uint32_t value);
 
@@ -271,6 +277,7 @@ private:
    std::unordered_map<uint64_t, SurfaceBuffer> mSurfaces;
    std::unordered_map<uint32_t, AttributeBuffer> mAttribBuffers;
    std::unordered_map<uint32_t, UniformBuffer> mUniformBuffers;
+   std::unordered_map<uint32_t, AttributeBuffer> mFeedbackBuffers;
 
    std::array<Sampler, latte::MaxSamplers> mVertexSamplers;
    std::array<Sampler, latte::MaxSamplers> mPixelSamplers;
@@ -285,6 +292,9 @@ private:
    std::array<SurfaceBuffer *, latte::MaxRenderTargets> mActiveColorBuffers;
    ScanBufferChain mTvScanBuffers;
    ScanBufferChain mDrcScanBuffers;
+
+   gl::GLuint mFeedbackQuery = 0;
+   bool mFeedbackActive = false;
 
    latte::ContextState *mContextState = nullptr;
 
