@@ -145,22 +145,28 @@ POP(State &state, const ControlFlowInst &cf)
 static void
 EMIT_VERTEX(State &state, const ControlFlowInst &cf)
 {
+   condStart(state, cf.word1.COND());
    insertLineStart(state);
    state.out << "EmitVertex();";
    insertLineEnd(state);
+   condEnd(state);
 }
 
 static void
 CUT_VERTEX(State &state, const ControlFlowInst &cf)
 {
+   condStart(state, cf.word1.COND());
    insertLineStart(state);
    state.out << "EndPrimitive();";
    insertLineEnd(state);
+   condEnd(state);
 }
 
 static void
 EMIT_CUT_VERTEX(State &state, const ControlFlowInst &cf)
 {
+   condStart(state, cf.word1.COND());
+
    insertLineStart(state);
    state.out << "EmitVertex();";
    insertLineEnd(state);
@@ -168,6 +174,8 @@ EMIT_CUT_VERTEX(State &state, const ControlFlowInst &cf)
    insertLineStart(state);
    state.out << "EndPrimitive();";
    insertLineEnd(state);
+
+   condEnd(state);
 }
 
 void
