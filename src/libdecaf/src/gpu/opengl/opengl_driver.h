@@ -79,6 +79,16 @@ struct VertexShader : public Resource
    std::string disassembly;
 };
 
+struct GeometryShader : public Resource
+{
+   gl::GLuint object = 0;
+   gl::GLuint uniformRegisters = 0;
+   std::array<uint8_t, 256> outputMap;
+   std::array<bool, 16> usedUniformBlocks;
+   std::string code;
+   std::string disassembly;
+};
+
 struct PixelShader : public Resource
 {
    gl::GLuint object = 0;
@@ -91,16 +101,19 @@ struct PixelShader : public Resource
    std::string disassembly;
 };
 
-using ShaderKey = std::tuple<uint64_t, uint64_t, uint64_t>;
+using ShaderKey = std::tuple<uint64_t, uint64_t, uint64_t, uint64_t, uint64_t>;
 
 struct Shader
 {
    gl::GLuint object = 0;
    FetchShader *fetch;
    VertexShader *vertex;
+   GeometryShader *geometry;
    PixelShader *pixel;  // Null if rasterization is disabled
    uint64_t fetchKey;
    uint64_t vertexKey;
+   uint64_t geometryKey;
+   uint64_t dcacheKey;
    uint64_t pixelKey;
 };
 
@@ -344,8 +357,9 @@ private:
    void applyRegister(latte::Register reg);
 
    bool parseFetchShader(FetchShader &shader, void *buffer, size_t size);
-   bool compileVertexShader(VertexShader &vertex, FetchShader &fetch, uint8_t *buffer, size_t size, bool isScreenSpace);
-   bool compilePixelShader(PixelShader &pixel, VertexShader &vertex, uint8_t *buffer, size_t size);
+   bool compileVertexShader(VertexShader &vertex, const FetchShader *fetch, uint8_t *buffer, size_t size, bool isScreenSpace, bool isGeomEnabled);
+   bool compileGeometryShader(GeometryShader &geometry, const VertexShader *vertex, uint8_t *buffer, size_t size);
+   bool compilePixelShader(PixelShader &pixel, const VertexShader *vertex, const GeometryShader *geometry, uint8_t *buffer, size_t size);
 
    void runCommandBuffer(uint32_t *buffer, uint32_t size);
 
@@ -384,6 +398,8 @@ private:
 
    std::unordered_map<uint64_t, FetchShader> mFetchShaders;
    std::unordered_map<uint64_t, VertexShader> mVertexShaders;
+   std::unordered_map<uint64_t, GeometryShader> mGeometryShaders;
+   std::unordered_map<uint64_t, GeometryShader> mDcacheShaders;
    std::unordered_map<uint64_t, PixelShader> mPixelShaders;
    std::map<ShaderKey, Shader> mShaders;
    std::unordered_map<uint64_t, SurfaceBuffer> mSurfaces;
